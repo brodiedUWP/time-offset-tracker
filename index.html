@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Offset Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f4f9;
+      color: #333;
+    }
+    h1 { margin-bottom: 20px; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    th { background: #eee; }
+    input[type="number"] {
+      width: 80px;
+      padding: 4px;
+    }
+    button {
+      padding: 6px 12px;
+      margin: 4px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-primary { background: #4CAF50; color: #fff; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-toggle { background: #3498db; color: #fff; }
+    .hidden { display: none; }
+
+    /* Make live mode text larger */
+    #liveMode table td, #liveMode table th {
+      font-size: 1.6em;
+      padding: 18px;
+    }
+    #liveMode h2 {
+      font-size: 2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Time Offset Tracker</h1>
+  <button id="toggleModeBtn" class="btn-toggle">Switch to Live Mode</button>
+
+  <!-- Edit Mode -->
+  <div id="editMode">
+    <h2>Edit Mode</h2>
+    <table>
+      <thead>
+        <tr><th>Days from now</th><th>Date</th><th>Action</th></tr>
+      </thead>
+      <tbody id="editBody"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"><button id="addRowBtn" class="btn-primary">Add new row</button></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Live Mode -->
+  <div id="liveMode" class="hidden">
+    <h2>Live Service Mode</h2>
+    <table>
+      <thead>
+        <tr><th>Days from now</th><th>Date</th></tr>
+      </thead>
+      <tbody id="liveBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let rows = [];
+    let mode = 'edit';
+    const STORAGE_KEY = 'timeOffsetRows';
+
+    function saveRows() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    }
+
+    function loadRows() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          rows = JSON.parse(saved);
+        } catch {
+          rows = [];
+        }
+      }
+    }
+
+    function todayLocal() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function addDays(date, days) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate() + Number(days));
+    }
+
+    function fmtMMDD(date) {
+      return (date.getMonth()+1) + "/" + date.getDate();
+    }
+
+    function renderEdit() {
+      const start = todayLocal();
+      const editBody = document.getElementById('editBody');
+      editBody.innerHTML = '';
+      rows.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="number" value="${row.days}" data-idx="${idx}" class="day-input"></td>
+          <td>${fmtMMDD(addDays(start, row.days))}</td>
+          <td><button data-idx="${idx}" class="btn-danger deleteBtn">Delete</button></td>
+        `;
+        editBody.appendChild(tr);
+      });
+      saveRows();
+    }
+
+    function renderLive() {
+      const start = todayLocal();
+      const liveBody = document.getElementById('liveBody');
+      liveBody.innerHTML = '';
+      // Sort rows only when switching to live mode
+      const sorted = [...rows].sort((a,b) => a.days - b.days);
+      sorted.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.days} days from now</td>
+          <td>${fmtMMDD(addDays(start, row.days))}</td>
+        `;
+        liveBody.appendChild(tr);
+      });
+      // Update rows order after rendering live mode
+      rows = sorted;
+      renderEdit();
+    }
+
+    document.getElementById('addRowBtn').addEventListener('click', () => {
+      rows.push({ days: 0 });
+      renderEdit();
+    });
+
+    document.getElementById('editBody').addEventListener('input', (e) => {
+      if (e.target.classList.contains('day-input')) {
+        const idx = e.target.dataset.idx;
+        rows[idx].days = Number(e.target.value);
+        renderEdit();
+      }
+    });
+
+    document.getElementById('editBody').addEventListener('click', (e) => {
+      if (e.target.classList.contains('deleteBtn')) {
+        const idx = e.target.dataset.idx;
+        rows.splice(idx,1);
+        renderEdit();
+      }
+    });
+
+    document.getElementById('toggleModeBtn').addEventListener('click', () => {
+      if (mode === 'edit') {
+        mode = 'live';
+        document.getElementById('editMode').classList.add('hidden');
+        document.getElementById('liveMode').classList.remove('hidden');
+        document.getElementById('toggleModeBtn').textContent = 'Switch to Edit Mode';
+        renderLive();
+      } else {
+        mode = 'edit';
+        document.getElementById('editMode').classList.remove('hidden');
+        document.getElementById('liveMode').classList.add('hidden');
+        document.getElementById('toggleModeBtn').textContent = 'Switch to Live Mode';
+        renderEdit();
+      }
+    });
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+
+    // Initialize
+    loadRows();
+    if (rows.length === 0) {
+      rows = [{days:5},{days:10}];
+    }
+    renderEdit();
+  </script>
+</body>
+</html>

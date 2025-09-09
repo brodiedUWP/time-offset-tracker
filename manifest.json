@@ -1,0 +1,70 @@
+// manifest.json
+{
+  "name": "Time Offset Tracker",
+  "short_name": "OffsetTracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f4f9",
+  "theme_color": "#3498db",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+
+// service-worker.js
+const CACHE_NAME = 'time-offset-tracker-cache-v1';
+const URLS_TO_CACHE = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(URLS_TO_CACHE);
+    })
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+});
+
+// icon-192.png and icon-512.png
+// You can generate simple placeholder icons using any image editor or free online tool.
+// For testing, here's how you can quickly create them with plain colors and a letter "T":
+// 1. Open an online favicon/icon generator.
+// 2. Make a 192x192 and a 512x512 PNG with a blue background (#3498db) and a white "T" in the center.
+// 3. Save them as icon-192.png and icon-512.png in the same folder as index.html.
+
+// These icons will allow installation and display when you "Add to Home Screen" on your tablet.
